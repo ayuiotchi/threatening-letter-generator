@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+    <!-- R6 ソフトウェア工学概説 最終課題 2220105 -->
+
+<html lang="ja">
+
+    <head>
+        <meta charset="UTF-8">
+        <title>final_kadai</title>
+
+<!-- CSS -->
+
+        <style>
+            /* 全体 */
+            body {
+                text-align: center;
+                /*background: linear-gradient(90deg, ivory, khaki);*/
+                color: #000;
+                background-color: #f3f1e7;
+            }
+
+            /* 入力フォーム（数字） */
+            input[type="number"] {
+                width: 50px;
+            }
+
+            /* キャンバス */
+            canvas {
+                border: solid #999 1px;
+            }
+        </style>
+
+    </head>
+       
+    
+<!-- HTML<body> -->
+
+    <body>
+        <h1 id="title">怪文書画像generator</h1>
+
+        <p>ここに文章を入力</p>
+        <!-- テキストエリア -->
+        <textarea id="textArea" rows="10" cols="80">これはテキストの入力一例です。　(This is dummy.)</textarea>        
+
+        <p>フォント：
+            <!-- プルダウンメニュー -->
+            <select id="fontTypes">
+                <option value="0" selected>ランダム</option>
+                <option value="1">ゴシック体/サンセリフ 1</option>
+                <option value="2">ゴシック体/サンセリフ 2</option>
+                <option value="3">明朝体/セリフ体 1</option>
+                <option value="4">宋朝体/セリフ体 2</option>
+                <option value="5">英文等幅フォント</option>
+                <option value="6">英文装飾体</option>
+                <option value="7">英文筆記体</option>
+                <option value="8">行書体</option>
+            </select>
+        </p>
+
+        <p>文字背景：
+            <!-- ラジオボタン -->
+            <input type="radio" name="charGrounds" checked> あり
+            <input type="radio" name="charGrounds"> なし
+        </p>
+
+        <p>画像背景：
+            <!-- ラジオボタン -->
+            <input type="radio" name="backGrounds" checked> あり
+                <!-- 色入力 -->
+                （色：<input type="color" id="backColor" value="#ffffff">）
+            <input type="radio" name="backGrounds"> なし（透過画像）
+        </p>
+
+        <p>一行の文字数：
+            <!-- 数字入力（既定値4・最小値1） -->
+            <input type="number" id="rowCount" min="1">
+        </p>
+
+        <p>画像サイズ　
+            幅：<input type="number" id="canvasWidth" min="10" step="10">
+            高さ：<input type="number" id="canvasHeight" min="10" step="10">
+            
+        </p>
+
+        <p>画像端の余白サイズ（％）　
+            左右：<input type="number" id="paddingWidthRate" value="0" max="50" min="0">
+            上下：<input type="number" id="paddingHeightRate" value="0" max="50" min="0">
+        </p>
+
+        <!-- 実行ボタン -->
+        <input type="button" value="生成" id="generateButton">
+
+        <!-- キャンバス（既定値1120×800） -->
+        <p>
+            <canvas id="textCanvas" width="1120" height="800"></canvas>
+        </p>
+
+        <!-- 保存ボタン -->
+        <input type="button" value="画像をダウンロード（PNG形式）" id="downloadButton">
+    </body>
+
+    
+<!-- JavaScript -->
+
+    <script>
+        // フォント
+        const fonts = [
+            "", "'MS Gothic'", "'Trebuchet MS'", "'MS Mincho'", "'NSimSun'",
+            "'Courier New'", "'Monotype Corsiva'", "'Comic Sans MS'", "'HG行書体'"
+        ]
+        // 色
+        const colors = ["#000", "#222", "#444", "#666", "#888", "#aaa", "#ccc", "#eee"];
+
+        // 一行の既定文字数
+        const rowCtDef = 8;
+        // キャンバスの表示サイズ（Wt）
+        const cvsWtDisp = 560;
+        // 背景がcolors[blackIdx]より暗ければ，文字色を白に反転
+        const blackIdx = 4;
+        // 一文字相当の範囲における文字の占有率（50%）
+        const occRate = 0.50;
+
+        // オブジェクトの取得
+        const titleElem = document.getElementById("title");
+        const textElem = document.getElementById("textArea");
+        const fntTypesElem = document.getElementById("fontTypes");
+        const chrGudsElem = document.getElementsByName("charGrounds");
+        const backGudsElem = document.getElementsByName("backGrounds");
+        const backClrElem = document.getElementById("backColor");
+        
+        const rowCtElem = document.getElementById("rowCount");
+        const cvsWtElem = document.getElementById("canvasWidth");
+        const cvsHtElem = document.getElementById("canvasHeight");
+        const padWtRateElem = document.getElementById("paddingWidthRate");
+        const padHtRateElem = document.getElementById("paddingHeightRate");
+
+        const genBtnElem = document.getElementById("generateButton");
+        const dlBtnElem = document.getElementById("downloadButton");
+        const cvsElem = document.getElementById("textCanvas");
+        const aElem = document.createElement("a");  // アンカー要素
+        
+        // 既定文字数を入力に反映
+        rowCtElem.value = rowCtDef;
+        // キャンバス->画像サイズの入力に反映
+        cvsWtElem.value = cvsElem.width;
+        cvsHtElem.value = cvsElem.height;
+        // キャンバスの表示サイズ
+        cvsElem.style.width = cvsWtDisp.toString()+"px";
+
+        // 一行の文字数の最小値
+        const rowCountMin = Number(rowCtElem.min); // 1
+        // キャンバスの最小サイズ
+        const cvsWtMin = Number(cvsWtElem.min); // 10
+        const cvsHtMin = Number(cvsHtElem.min); // 10
+        // キャンバスの描画コンテキスト（２次元）を取得
+        const context = cvsElem.getContext("2d");
+
+
+    // 関数
+
+        // 一文字を描画
+        function drawCharacter(chr, x, y, fsize, fname, fcolor) {
+            // フォントサイズ・種類
+            context.font = fsize.toString()+"pt "+fname;
+            // 左揃え
+            context.textAlign = "center";
+            // 文字の色
+            context.fillStyle = fcolor;
+
+            // テキスト描画
+            context.fillText(chr, x, y);
+            console.log("'"+chr+"'"+" font:"+fname)            
+        }
+
+        // 文字背景を描画
+        function drawSquare(x, y, size, color) {
+            // 背景（正方形）の一辺長
+            const bgSize = size*2;
+            // 背景座標（pt->px補正）
+            const bgX1 = x - bgSize/2;
+            const bgY1 = y - bgSize*0.75;
+            // 背景の色
+            context.fillStyle = color;
+
+            // 矩形（塗り潰し）
+            context.fillRect(bgX1, bgY1, bgSize, bgSize);
+        }
+
+        // 数字入力->0以上の実数値
+        function toPosinum(numStr, numMin) {
+            return Math.max(Number(numStr), numMin)
+        }
+
+        // ラジオ入力->真偽値
+        function isChrGud(cgElem) {
+
+            // 第0要素（背景あり）が選択されているかを確認
+            if (cgElem[0].checked) {
+                return true
+            } else {
+                return false
+            }
+        }
+
+        // 整乱数生成（m~n-1）
+        function getRandomInt(m, n) {
+            const r = Math.random()*(n-m);
+            return Math.floor(r)+m;
+        }
+
+        // フォントの色
+        function getVisFontColor(bgClrNum, strGudElem) {
+            if (bgClrNum<blackIdx && isChrGud(strGudElem)) {
+                return "#fff";  // white
+            } else {
+                return colors[0];
+            }
+        }
+
+
+    // タイトル部分の描画
+        const title = titleElem.textContent;
+        let newTitle = "";
+
+        // 一文字ずつ様式を決定
+        for (let i=0; i<title.length; i++) {
+            const s = title[i];
+            const ttlFont = fonts[getRandomInt(1, fonts.length)];
+            newTitle += '<span style="font-family: '+ttlFont+';">'+s+'</span>';
+        }
+        titleElem.innerHTML = newTitle;
+
+
+    // 生成ボタン押下時
+        genBtnElem.addEventListener("click", function () {
+            console.log("------------生成------------");
+
+            // 文章を取得
+            const txt = textElem.value;
+            // 文章の長さとリスト形式を取得
+            const txtList = txt.split('');
+            const txtLen = txt.length;
+
+            // 一行の文字数を取得，行数計算（自然数，小数点以下切り上げ）
+            const rowCtNum = toPosinum(rowCtElem.value, 1);
+            const rowCount = Math.ceil(rowCtNum);
+            const colCount = Math.ceil(txtLen/rowCount);
+            console.log("横：", rowCount, "x 縦：", colCount);
+            // キャンバスサイズを取得
+            const cvsWt = toPosinum(cvsWtElem.value, cvsWtMin);
+            const cvsHt = toPosinum(cvsHtElem.value, cvsWtMin);
+            // 上下・左右の余白を取得，割合->px値に変換
+            const padWt = cvsWt*toPosinum(padWtRateElem.value, 0)/100;
+            const padHt = cvsHt*toPosinum(padHtRateElem.value, 0)/100;
+
+            // 一文字相当の範囲の幅・高さを計算
+            const strWt = (cvsWt-padWt*2)/rowCount;
+            const strHt = (cvsHt-padHt*2)/colCount;
+            // 短い側の辺
+            const strSt = Math.min(strWt, strHt);
+
+            // キャンバスをリセット（バッファサイズ変更，画素透過）
+            cvsElem.width = cvsWt;
+            cvsElem.height = cvsHt;
+            context.clearRect(0, 0, cvsWt, cvsHt);
+
+            // 背景色を取得
+            const backClr = backClrElem.value;
+            // キャンバスをその色で埋める
+            if (backGudsElem[0].checked) {
+                context.fillStyle = backClr;
+                context.fillRect(0, 0, cvsWt, cvsHt);
+            }
+
+            // 表示サイズ
+            cvsElem.style.width = cvsWtDisp.toString()+"px";
+
+            // 文字（範囲）単位で繰り返し
+            for (let i=0; i<txtLen; i++) {
+
+                // m行n列目
+                const m = Math.floor(i/rowCount);
+                const n = i%rowCount;
+                console.log("i=", i, m, "行", n, "列目"); // (0,0)->(0,1)->...
+
+                // 文字
+                const chri = txtList[i];
+
+                // 空白文字以外の場合，描画
+                if (chri!="　" && chri!=" " && chri!="\n" && chri!="\t") {
+
+                    // テキストの中心座標
+                    const x = strWt/2 + strWt*n + padWt;
+                    const y = strHt*2/3 + strHt*m + padHt;
+
+                    // フォント種のインデックスを取得
+                    const fontIdx = fntTypesElem.selectedIndex;
+                    const fontNum = Number(fntTypesElem.options[fontIdx].value);
+
+                    if (fontNum!=0) {
+                    // フォントを指定して出力（fontNumが0以外の値）
+
+                        // フォントサイズ（短辺*占有率/2）
+                        const fSize = strSt*occRate/2;
+
+                        // 背景を描画
+                        if (isChrGud(chrGudsElem)) drawSquare(x, y, fSize, "#ccc");              
+
+                        // 文字を描画
+                        drawCharacter(chri, x, y, fSize, fonts[fontNum], "#000");
+
+                    } else {
+                    // ランダムなフォントを出力
+
+                        // フォントサイズ（短辺*.2~.5）
+                        const randRate = getRandomInt(2, 5).toFixed(2)/10;
+                        const fSize = strSt*randRate;
+
+                        // 背景色・フォント種（[0]以外）の乱数
+                        const bgClrNum = getRandomInt(0, colors.length);
+                        const fontNum = getRandomInt(1, fonts.length);
+                    
+                        // 背景を描画
+                        if (isChrGud(chrGudsElem)) drawSquare(x, y, fSize, colors[bgClrNum]); 
+
+                        // 文字を描画
+                        const chrClr = getVisFontColor(bgClrNum, chrGudsElem);
+                        drawCharacter(chri, x, y, fSize, fonts[fontNum], chrClr);
+                    }
+                }
+                
+            }
+
+        }, false);
+
+    // 保存ボタン押下時
+        dlBtnElem.addEventListener("click", function () {
+            console.log("------------保存------------");
+
+            // キャンバスのDataURL，画像名を代入し保存
+            aElem.href = cvsElem.toDataURL("image/png");
+            aElem.download = "image.png";
+            aElem.click();
+
+        }, false);
+
+    </script>
+
+</html>
