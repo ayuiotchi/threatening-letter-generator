@@ -5,27 +5,60 @@
 
     <head>
         <meta charset="UTF-8">
-        <title>final_kadai</title>
+        <title>threatening-letter-generator</title>
 
 <!-- CSS -->
 
         <style>
+            /* フォントをダウンロード（font/~） */
+            @import url('https://fonts.googleapis.com/css?family=Shippori+Mincho&family=Kiwi+Maru');
+            @font-face {
+                font-family: 'Shippori Mincho';
+                src: url(ShipporiMincho-Regular.ttf);
+            }
+            @font-face {
+                font-family: 'Kiwi Maru';
+                src: url(KiwiMaru-Regular.ttf);
+            }
+            
             /* 全体 */
             body {
+                background-color: #e0e0e0;
+                color: #303030;
                 text-align: center;
-                /*background: linear-gradient(90deg, ivory, khaki);*/
-                color: #000;
-                background-color: #f3f1e7;
             }
 
-            /* 入力フォーム（数字） */
-            input[type="number"] {
-                width: 50px;
+            /* テキストボックス */
+            textarea {
+                background-color: #ffffff;
             }
 
             /* キャンバス */
             canvas {
-                border: solid #999 1px;
+                border: 1px solid #808080;
+            }
+
+            /* 入力部品 */
+            input {
+                background-color: #ffffff;
+            }
+            /* （数字入力） */
+            [type="number"] {
+                width: 50px;
+                border: 0px;
+            }
+            /* （ボタン） */
+            [type="button"] {
+                color: #303030;
+                border: 2px double #303030;
+            }
+
+            /* ボタン配色 */
+            #generateButton {
+                background-color: #ffff30;
+            }
+            #downloadButton {
+                background-color: #60ff30;
             }
         </style>
 
@@ -48,26 +81,27 @@
                 <option value="1">ゴシック体/サンセリフ 1</option>
                 <option value="2">ゴシック体/サンセリフ 2</option>
                 <option value="3">明朝体/セリフ体 1</option>
-                <option value="4">宋朝体/セリフ体 2</option>
+                <option value="4">明朝体/セリフ体 2</option>
                 <option value="5">英文等幅フォント</option>
-                <option value="6">英文装飾体</option>
-                <option value="7">英文筆記体</option>
-                <option value="8">行書体</option>
+                <option value="6">装飾体</option>
+                <option value="7">筆記体</option>
+                <option value="8">太字体</option>
+                <option value="9">行書体</option>
             </select>
         </p>
 
         <p>文字背景：
             <!-- ラジオボタン -->
-            <input type="radio" name="charGrounds" checked> あり
-            <input type="radio" name="charGrounds"> なし
+            <input type="radio" name="charGround" checked> あり
+            <input type="radio" name="charGround"> なし
         </p>
 
         <p>画像背景：
             <!-- ラジオボタン -->
-            <input type="radio" name="backGrounds" checked> あり
+            <input type="radio" name="backGround" checked> あり
                 <!-- 色入力 -->
-                （色：<input type="color" id="backColor" value="#ffffff">）
-            <input type="radio" name="backGrounds"> なし（透過画像）
+                （色：<input type="color" id="backGroundColor" value="#ffffff">）
+            <input type="radio" name="backGround"> なし（透過画像）
         </p>
 
         <p>一行の文字数：
@@ -104,8 +138,25 @@
     <script>
         // フォント
         const fonts = [
-            "", "'MS Gothic'", "'Trebuchet MS'", "'MS Mincho'", "'NSimSun'",
-            "'Courier New'", "'Monotype Corsiva'", "'Comic Sans MS'", "'HG行書体'"
+            "'IBM Plex Sans JP, system-ui", 
+            // 1.ゴシック体/サンセリフ 1
+            "'Segoe UI', 'Gill Sans', 'Meiryo UI', sans-serif", 
+            // 2.ゴシック体/サンセリフ 2
+            "'Arial', 'Yu Gothic', 'Hiragino Sans W3', sans-serif",
+            // 3.明朝体/セリフ体 1
+            "'Times New Roman', 'MS Mincho', 'Hiragino Mincho Pro W3', serif", 
+            // 4.明朝体/セリフ体 2
+            "'Georgia', 'Yu Mincho', 'Hiragino Mincho Pro W6', serif",
+            // 5.英文等幅フォント
+            "'Courier New', 'Yu Gothic UI Light', 'Hiragino Maru Gothic Pro W4', monospace", 
+            // 6.装飾体
+            "'Monotype Corsiva', 'Snell Roundhand', 'Shippori Mincho', fantasy", 
+            // 7.筆記体
+            "'Comic Sans MS', 'scheme', 'Kiwi Maru', cursive",
+            // 8.太字体
+            "'Impact', 'Yu Gothic UI Semibold', 'Hiragino Sans W7', sans-serif",
+            // 9.行書体
+            "'HG行書体', 'Hiragino Mincho ProN W6', serif"
         ]
         // 色
         const colors = ["#000", "#222", "#444", "#666", "#888", "#aaa", "#ccc", "#eee"];
@@ -123,9 +174,10 @@
         const titleElem = document.getElementById("title");
         const textElem = document.getElementById("textArea");
         const fntTypesElem = document.getElementById("fontTypes");
-        const chrGudsElem = document.getElementsByName("charGrounds");
-        const backGudsElem = document.getElementsByName("backGrounds");
-        const backClrElem = document.getElementById("backColor");
+
+        const chrGudElem = document.getElementsByName("charGround");
+        const backGudElem = document.getElementsByName("backGround");
+        const backClrElem = document.getElementById("backGroundColor");
         
         const rowCtElem = document.getElementById("rowCount");
         const cvsWtElem = document.getElementById("canvasWidth");
@@ -160,7 +212,8 @@
         // 一文字を描画
         function drawCharacter(chr, x, y, fsize, fname, fcolor) {
             // フォントサイズ・種類
-            context.font = fsize.toString()+"pt "+fname;
+            const fstyle = fsize.toString()+"pt "+fname;
+            context.font = fstyle;
             // 左揃え
             context.textAlign = "center";
             // 文字の色
@@ -168,7 +221,8 @@
 
             // テキスト描画
             context.fillText(chr, x, y);
-            console.log("'"+chr+"'"+" font:"+fname)            
+            //console.log("'"+chr+"'"+" font:"+fname)
+            console.log("'"+chr+"': "+fstyle);        
         }
 
         // 文字背景を描画
@@ -207,7 +261,7 @@
             return Math.floor(r)+m;
         }
 
-        // フォントの色
+        // ランダム生成時におけるフォントの色
         function getVisFontColor(bgClrNum, strGudElem) {
             if (bgClrNum<blackIdx && isChrGud(strGudElem)) {
                 return "#fff";  // white
@@ -245,12 +299,12 @@
             const rowCount = Math.ceil(rowCtNum);
             const colCount = Math.ceil(txtLen/rowCount);
             console.log("横：", rowCount, "x 縦：", colCount);
-            // キャンバスサイズを取得
+            // キャンバスサイズを取得（0以上）
             const cvsWt = toPosinum(cvsWtElem.value, cvsWtMin);
             const cvsHt = toPosinum(cvsHtElem.value, cvsWtMin);
-            // 上下・左右の余白を取得，割合->px値に変換
-            const padWt = cvsWt*toPosinum(padWtRateElem.value, 0)/100;
-            const padHt = cvsHt*toPosinum(padHtRateElem.value, 0)/100;
+            // 上下・左右の余白を取得（0以上50以下），割合->px値に変換
+            const padWt = cvsWt*Math.min(toPosinum(padWtRateElem.value, 0), 50)/100;
+            const padHt = cvsHt*Math.min(toPosinum(padHtRateElem.value, 0), 50)/100;
 
             // 一文字相当の範囲の幅・高さを計算
             const strWt = (cvsWt-padWt*2)/rowCount;
@@ -266,7 +320,7 @@
             // 背景色を取得
             const backClr = backClrElem.value;
             // キャンバスをその色で埋める
-            if (backGudsElem[0].checked) {
+            if (backGudElem[0].checked) {
                 context.fillStyle = backClr;
                 context.fillRect(0, 0, cvsWt, cvsHt);
             }
@@ -303,7 +357,7 @@
                         const fSize = strSt*occRate/2;
 
                         // 背景を描画
-                        if (isChrGud(chrGudsElem)) drawSquare(x, y, fSize, "#ccc");              
+                        if (isChrGud(chrGudElem)) drawSquare(x, y, fSize, "#ccc");              
 
                         // 文字を描画
                         drawCharacter(chri, x, y, fSize, fonts[fontNum], "#000");
@@ -320,10 +374,10 @@
                         const fontNum = getRandomInt(1, fonts.length);
                     
                         // 背景を描画
-                        if (isChrGud(chrGudsElem)) drawSquare(x, y, fSize, colors[bgClrNum]); 
+                        if (isChrGud(chrGudElem)) drawSquare(x, y, fSize, colors[bgClrNum]); 
 
                         // 文字を描画
-                        const chrClr = getVisFontColor(bgClrNum, chrGudsElem);
+                        const chrClr = getVisFontColor(bgClrNum, chrGudElem);
                         drawCharacter(chri, x, y, fSize, fonts[fontNum], chrClr);
                     }
                 }
